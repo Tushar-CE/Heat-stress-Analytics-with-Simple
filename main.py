@@ -9,14 +9,12 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import r2_score
 warnings.filterwarnings('ignore')
 
-# ============ PAGE CONFIGURATION ============
 st.set_page_config(
     page_title="Construction Heat Stress Estimator - Simple View",
     page_icon="🏗️",
     layout="centered"
 )
 
-# ============ CUSTOM CSS - DARK THEME ============
 st.markdown("""
 <style>
     .stApp {
@@ -274,9 +272,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ============ DATA LOADING FUNCTIONS ============
 def create_sample_data():
-    """Generate synthetic construction site thermal data"""
     np.random.seed(42)
     n_samples = 500
     
@@ -313,7 +309,6 @@ else:
     except:
         df = create_sample_data()
 
-# Prepare dataframes
 hs_df = pd.DataFrame({
     'T(0C)': pd.to_numeric(df['T'], errors='coerce'),
     'RH(%)': pd.to_numeric(df['RH'], errors='coerce'),
@@ -335,7 +330,6 @@ bh_df = pd.DataFrame({
 if len(bh_df) > 0:
     bh_df = bh_df[bh_df['Height(m)'] > 0].sort_values('Height(m)')
 
-# ============ TRAIN MODEL ============
 features = ['T(0C)', 'RH(%)', 'WS(m/s)']
 targets = ['PET(0C)', 'PMV', 'PPD(%)', 'SET (0C)', 'RWS(m/s)', 'CE(0C)']
 
@@ -366,7 +360,6 @@ for target, y in y_dict.items():
     nn.fit(X_train, y_train)
     models[target] = nn
 
-# ============ CONSTRUCTION WORK DATA ============
 work_data = {
     "Rest (R)": {"M": 115, "PET_AL": 35, "description": "Sitting, light activities", "base_factor": 0.15},
     "Light (LW)": {"M": 180, "PET_AL": 35.5, "description": "Standing, light hand work", "base_factor": 0.20},
@@ -380,9 +373,7 @@ activity_to_work = {
     3.2: "Heavy (HW)", 3.8: "Heavy (HW)", 4.0: "Very Heavy (VHW)"
 }
 
-# ============ HELPER FUNCTIONS ============
 def calc_productivity_loss(pet_value, work_type_key, baseline):
-    """Calculate construction worker productivity decrement"""
     work = work_data[work_type_key]
     PET_AL = work["PET_AL"]
     base_factor = work["base_factor"]
@@ -395,7 +386,6 @@ def calc_productivity_loss(pet_value, work_type_key, baseline):
         return min(PL, 30)
 
 def get_thermal_risk_level(pet):
-    """Determine construction heat stress risk category"""
     if pet > 41.0:
         return "CRITICAL", "Immediate work stoppage required", "🔴", "critical"
     elif pet > 35.0:
@@ -408,7 +398,6 @@ def get_thermal_risk_level(pet):
         return "COMFORTABLE", "Optimal working conditions", "✅", "comfortable"
 
 def get_pmv_interpretation(pmv):
-    """Construction worker thermal comfort interpretation"""
     if pmv >= 3.0:
         return "SEVERE DISCOMFORT - High heat strain"
     elif pmv >= 2.5:
@@ -423,7 +412,6 @@ def get_pmv_interpretation(pmv):
         return "COMFORTABLE - Neutral thermal sensation"
 
 def get_height_profile(ground_pet, ground_pmv, height_m, bh_df):
-    """Calculate vertical temperature gradient for construction sites"""
     if len(bh_df) == 0:
         return None
     
@@ -431,7 +419,6 @@ def get_height_profile(ground_pet, ground_pmv, height_m, bh_df):
     pet_pattern = bh_df['PET(0C)'].values.copy()
     pmv_pattern = bh_df['PMV'].values.copy() if 'PMV' in bh_df.columns else pet_pattern * 0.08
     
-    # Ensure monotonic decrease (lapse rate)
     for i in range(1, len(pet_pattern)):
         if pet_pattern[i] > pet_pattern[i-1]:
             pet_pattern[i] = max(pet_pattern[i-1] - 0.1, 0)
@@ -479,11 +466,9 @@ def get_height_profile(ground_pet, ground_pmv, height_m, bh_df):
         'lapse_rate': (ground_pet - pet_at_100) / 100 if height_m > 0 else 0
     }
 
-# ============ MAIN UI ============
 st.markdown('<div class="main-title">🏗️ Construction Heat Stress Estimator</div>', unsafe_allow_html=True)
 st.markdown('<div class="subtitle">Site-Specific Thermal Exposure & Productivity Assessment</div>', unsafe_allow_html=True)
 
-# ============ SIDEBAR ============
 with st.sidebar:
     st.markdown("### ⚙️ Site Conditions")
     st.markdown("---")
@@ -519,7 +504,6 @@ with st.sidebar:
     if st.button("🔄 Assess Heat Stress", use_container_width=True):
         st.rerun()
 
-# ============ PREDICTIONS ============
 input_data = np.array([[T, RH, WS]])
 input_scaled = scaler.transform(input_data)
 
@@ -543,7 +527,6 @@ for target in targets:
         else:
             predictions[target] = 0
 
-# Apply adjustments
 predictions['PET(0C)'] = np.clip(predictions['PET(0C)'] + clo * 0.5 + (met - 2.0) * 0.3, 20, 50)
 predictions['PMV'] = np.clip(predictions['PMV'] + clo * 0.3 + (met - 2.0) * 0.2, 0, 3.5)
 predictions['PPD(%)'] = np.clip(predictions['PPD(%)'] + clo * 2 + (met - 2.0) * 1.5, 5, 90)
@@ -551,14 +534,11 @@ predictions['PPD(%)'] = np.clip(predictions['PPD(%)'] + clo * 2 + (met - 2.0) * 
 ground_pet = predictions["PET(0C)"]
 ground_pmv = predictions["PMV"]
 
-# ============ HEIGHT PROFILE ============
 height_profile = get_height_profile(ground_pet, ground_pmv, height, bh_df)
 
-# ============ RISK ASSESSMENT ============
 risk_level, risk_desc, risk_icon, risk_class = get_thermal_risk_level(ground_pet)
 pmv_interpretation = get_pmv_interpretation(ground_pmv)
 
-# ============ 1. THERMAL RISK STATUS ============
 st.markdown(f"""
 <div class="status-box {risk_class}">
     <div style="font-size: 2rem; font-weight: 700;">
@@ -573,7 +553,6 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# ============ 2. SITE CONDITIONS ============
 st.markdown('<div class="section-title">📋 Site Conditions Summary</div>', unsafe_allow_html=True)
 
 col1, col2, col3 = st.columns(3)
@@ -622,7 +601,6 @@ with col3:
     </div>
     """, unsafe_allow_html=True)
 
-# ============ 3. THERMAL EXPOSURE METRICS ============
 st.markdown('<div class="section-title">🌡️ Thermal Exposure Indicators</div>', unsafe_allow_html=True)
 
 col1, col2 = st.columns(2)
@@ -671,7 +649,6 @@ with col2:
     </div>
     """, unsafe_allow_html=True)
 
-# ============ 4. VERTICAL THERMAL GRADIENT ============
 if height_profile:
     st.markdown('<div class="section-title">🏗️ Vertical Thermal Gradient Analysis</div>', unsafe_allow_html=True)
     
@@ -681,7 +658,6 @@ if height_profile:
     reduction = height_profile['reduction']
     lapse_rate = height_profile['lapse_rate']
     
-    # Thermal profile table
     st.markdown(f"""
     <div class="height-profile">
         <div class="height-row" style="font-weight:600; border-bottom:2px solid rgba(255,255,255,0.2);">
@@ -718,7 +694,6 @@ if height_profile:
     </div>
     """, unsafe_allow_html=True)
     
-    # Temperature reduction visualization
     st.markdown("#### 📊 Thermal Gradient Visualization")
     max_val = ground_pet
     min_val = pet_at_100
@@ -748,7 +723,6 @@ if height_profile:
     </div>
     """, unsafe_allow_html=True)
 
-# ============ 5. PRODUCTIVITY IMPACT ============
 st.markdown('<div class="section-title">📉 Productivity Impact Assessment</div>', unsafe_allow_html=True)
 
 current_work_key = activity_to_work.get(met, "Heavy (HW)")
@@ -757,7 +731,6 @@ work = work_data[current_work_key]
 pet_effective = height_profile['pet_at_height'] if height_profile else ground_pet
 productivity_loss = calc_productivity_loss(pet_effective, current_work_key, baseline_productivity)
 
-# Risk classification for productivity
 if productivity_loss == 0:
     loss_class, loss_icon, loss_desc = "low", "✅", "No productivity decrement"
 elif productivity_loss < 10:
@@ -786,7 +759,6 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# Work type comparison
 st.markdown("#### 📊 Productivity Decrement by Work Classification")
 
 loss_data = []
@@ -816,7 +788,6 @@ for wt, loss in loss_data:
     </div>
     """, unsafe_allow_html=True)
 
-# ============ 6. HEIGHT-BASED WORK RECOMMENDATION ============
 if height_profile and height > 0:
     st.markdown('<div class="section-title">🏗️ Height-Based Work Optimization</div>', unsafe_allow_html=True)
     
@@ -846,13 +817,12 @@ if height_profile and height > 0:
     </div>
     """, unsafe_allow_html=True)
 
-# ============ 7. SAFETY GUIDANCE ============
 st.markdown('<div class="section-title">🛡️ Site Safety Guidance</div>', unsafe_allow_html=True)
 
 risk_level_effective, risk_desc_effective, _, risk_class_effective = get_thermal_risk_level(pet_effective)
 
 if risk_class_effective == "critical":
-    guidance = f"""
+    guidance = """
     🔴 **EMERGENCY PROTOCOL — IMMEDIATE ACTION REQUIRED**
     
     • **Work Stoppage**: All non-essential outdoor construction activities must cease immediately
@@ -871,7 +841,7 @@ elif risk_class_effective == "high":
     • **Hydration**: 250ml water every 30 minutes; electrolyte drinks recommended for heavy work
     • **Monitoring**: Designate safety officer to monitor worker condition and PET levels hourly
     • **Work Modifications**: Schedule heavy work (VHW, HW) during cooler morning/evening hours
-    • **Height Consideration**: {f'Utilize {height}m elevation for {reduction:.1f}°C thermal relief' if height_profile and height > 0 else 'Consider elevating work platforms for thermal relief'}
+    • **Height Consideration**: Utilize {height}m elevation for thermal relief
     """
 elif risk_class_effective == "moderate":
     guidance = f"""
@@ -882,7 +852,7 @@ elif risk_class_effective == "moderate":
     • **Monitoring**: Regular observation of workers for early signs of heat strain
     • **Work Scheduling**: Continue normal operations with increased vigilance
     • **Cooling**: Ensure adequate shade and ventilation at all workstations
-    • **Height Strategy**: {f'Working at {height}m provides {reduction:.1f}°C reduction — consider vertical work positioning' if height_profile and height > 0 else 'Monitor for increasing temperatures throughout the day'}
+    • **Height Strategy**: Working at {height}m provides thermal reduction — consider vertical work positioning
     """
 else:
     guidance = f"""
@@ -892,7 +862,7 @@ else:
     • **Hydration**: Maintain normal water intake (250ml per hour minimum)
     • **Monitoring**: Continue routine safety observations
     • **Preparation**: Maintain readiness for temperature increases during peak hours
-    • **Best Practice**: {f'Working at {height}m provides optimal thermal conditions' if height_profile and height > 0 else 'Continue standard safety protocols'}
+    • **Best Practice**: Working at {height}m provides optimal thermal conditions
     """
 
 st.markdown(f"""
@@ -901,7 +871,6 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# ============ 8. TECHNICAL NOTES ============
 with st.expander("📐 Technical Notes & Methodology"):
     st.markdown("""
     **Thermal Exposure Assessment Parameters**
