@@ -903,3 +903,22 @@ with st.expander("📐 Technical Notes & Methodology"):
     **Productivity Loss Calculation**
     
     Based on empirical models from construction site studies:
+Where:
+- PL = Productivity loss (%)
+- ΔPET = PET above work-specific alert level (°C)
+- k = Work type coefficient (0.15-0.30)
+
+**Site-Specific Calibration**
+
+Results are calibrated for:
+- Outdoor construction environment conditions
+- Standard construction work clothing (0.57-1.00 clo)
+- Activity levels ranging from light to very heavy work
+- Humid subtropical climate conditions
+""")
+
+st.markdown("""
+<div class="footer-text">
+🏗️ Construction Heat Stress Estimator | Simple Assessment Interface | Version 1.0
+</div>
+""", unsafe_allow_html=True)
