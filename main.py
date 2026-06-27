@@ -3,16 +3,280 @@ import pandas as pd
 import numpy as np
 import warnings
 import os
-import sys
 from sklearn.neural_network import MLPRegressor
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import r2_score
 warnings.filterwarnings('ignore')
 
-# ============ FALLBACK DATA CREATION ============
+# ============ PAGE CONFIGURATION ============
+st.set_page_config(
+    page_title="Construction Heat Stress Estimator - Simple View",
+    page_icon="🏗️",
+    layout="centered"
+)
+
+# ============ CUSTOM CSS - DARK THEME ============
+st.markdown("""
+<style>
+    .stApp {
+        background: linear-gradient(145deg, #0f2027 0%, #203a43 50%, #2c5364 100%);
+    }
+    .main-title {
+        font-size: 2.5rem;
+        font-weight: 700;
+        text-align: center;
+        color: #ffffff;
+        padding: 1.5rem;
+        background: rgba(255,255,255,0.08);
+        backdrop-filter: blur(12px);
+        border-radius: 20px;
+        margin-bottom: 2rem;
+        border: 1px solid rgba(255,255,255,0.1);
+        box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+    }
+    .subtitle {
+        text-align: center;
+        color: rgba(255,255,255,0.7);
+        font-size: 0.95rem;
+        margin-top: -1.2rem;
+        margin-bottom: 2rem;
+        font-style: italic;
+    }
+    .section-title {
+        font-size: 1.4rem;
+        font-weight: 600;
+        color: #ffffff;
+        padding: 0.6rem 1rem;
+        margin: 1.2rem 0 0.8rem 0;
+        background: rgba(255,255,255,0.05);
+        backdrop-filter: blur(5px);
+        border-radius: 12px;
+        border-left: 5px solid #4ECDC4;
+    }
+    .result-card {
+        background: rgba(255,255,255,0.07);
+        backdrop-filter: blur(8px);
+        padding: 0.8rem 1rem;
+        border-radius: 12px;
+        color: #ffffff;
+        border: 1px solid rgba(255,255,255,0.1);
+        margin: 0.3rem 0;
+        transition: 0.3s;
+    }
+    .result-card:hover {
+        background: rgba(255,255,255,0.12);
+        transform: translateY(-2px);
+    }
+    .result-label {
+        font-weight: 500;
+        color: rgba(255,255,255,0.9);
+        font-size: 0.85rem;
+    }
+    .result-value {
+        font-weight: 700;
+        color: #ffffff;
+        font-size: 1.15rem;
+    }
+    .result-value.high {
+        color: #FF6B6B;
+    }
+    .result-value.moderate {
+        color: #FFD93D;
+    }
+    .result-value.low {
+        color: #4ECDC4;
+    }
+    .status-box {
+        padding: 1.2rem;
+        border-radius: 16px;
+        text-align: center;
+        color: #ffffff;
+        margin: 0.8rem 0;
+        border: 1px solid rgba(255,255,255,0.15);
+        box-shadow: 0 6px 20px rgba(0,0,0,0.2);
+    }
+    .status-box.critical {
+        background: linear-gradient(135deg, #8B0000, #FF0000);
+    }
+    .status-box.high {
+        background: linear-gradient(135deg, #FF4500, #FF8C00);
+    }
+    .status-box.moderate {
+        background: linear-gradient(135deg, #FFA500, #FFD700);
+        color: #333;
+    }
+    .status-box.low {
+        background: linear-gradient(135deg, #006400, #228B22);
+    }
+    .status-box.comfortable {
+        background: linear-gradient(135deg, #1a472a, #2d7d46);
+    }
+    .warning-box {
+        background: rgba(255,255,255,0.07);
+        backdrop-filter: blur(8px);
+        padding: 1rem 1.2rem;
+        border-radius: 12px;
+        border: 1px solid rgba(255,255,255,0.1);
+        margin: 0.8rem 0;
+        color: #ffffff;
+    }
+    .warning-box.critical {
+        border-left: 5px solid #FF0000;
+        background: rgba(255,0,0,0.1);
+    }
+    .warning-box.high {
+        border-left: 5px solid #FF8C00;
+        background: rgba(255,140,0,0.1);
+    }
+    .warning-box.moderate {
+        border-left: 5px solid #FFD700;
+        background: rgba(255,215,0,0.1);
+    }
+    .warning-box.low {
+        border-left: 5px solid #4ECDC4;
+        background: rgba(78,205,196,0.1);
+    }
+    .height-profile {
+        background: rgba(255,255,255,0.05);
+        backdrop-filter: blur(8px);
+        padding: 1rem;
+        border-radius: 12px;
+        border: 1px solid rgba(255,255,255,0.1);
+        margin: 0.5rem 0;
+    }
+    .height-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 0.4rem 0.5rem;
+        border-bottom: 1px solid rgba(255,255,255,0.05);
+        color: #ffffff;
+    }
+    .height-row:last-child {
+        border-bottom: none;
+    }
+    .height-row.highlight {
+        background: rgba(78,205,196,0.15);
+        border-radius: 4px;
+        padding: 0.4rem 0.5rem;
+    }
+    .bar-container {
+        background: rgba(255,255,255,0.1);
+        border-radius: 4px;
+        height: 22px;
+        position: relative;
+        margin: 0.3rem 0;
+        overflow: hidden;
+    }
+    .bar-fill {
+        height: 100%;
+        border-radius: 4px;
+        transition: width 0.3s;
+    }
+    .bar-label {
+        position: absolute;
+        right: 8px;
+        top: 2px;
+        font-size: 0.7rem;
+        font-weight: 600;
+        color: #ffffff;
+    }
+    .metric-item {
+        background: rgba(255,255,255,0.06);
+        padding: 0.6rem 0.8rem;
+        border-radius: 8px;
+        text-align: center;
+        border: 1px solid rgba(255,255,255,0.05);
+    }
+    .metric-item .label {
+        font-size: 0.75rem;
+        color: rgba(255,255,255,0.7);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    .metric-item .value {
+        font-size: 1.4rem;
+        font-weight: 700;
+        color: #ffffff;
+        margin-top: 0.2rem;
+    }
+    .guidance-box {
+        background: rgba(255,255,255,0.05);
+        backdrop-filter: blur(8px);
+        padding: 1rem;
+        border-radius: 12px;
+        border-left: 4px solid #4ECDC4;
+        color: #ffffff;
+        font-size: 0.95rem;
+        line-height: 1.6;
+    }
+    .guidance-box.critical {
+        border-left-color: #FF0000;
+    }
+    .guidance-box.high {
+        border-left-color: #FF8C00;
+    }
+    .guidance-box.moderate {
+        border-left-color: #FFD700;
+    }
+    .divider {
+        border: none;
+        border-top: 1px solid rgba(255,255,255,0.1);
+        margin: 1.5rem 0;
+    }
+    .footer-text {
+        text-align: center;
+        color: rgba(255,255,255,0.5);
+        font-size: 0.8rem;
+        margin-top: 2rem;
+        padding-top: 1rem;
+        border-top: 1px solid rgba(255,255,255,0.05);
+    }
+    [data-testid="stSidebar"] {
+        background: linear-gradient(195deg, #1a2f3f 0%, #1e3a4a 100%);
+        border-right: 1px solid rgba(255,255,255,0.1);
+    }
+    [data-testid="stSidebar"] [data-testid="stMarkdown"] {
+        color: #ffffff;
+    }
+    .stNumberInput > div > div > input {
+        background: rgba(255,255,255,0.05);
+        color: #ffffff;
+        border: 1px solid rgba(255,255,255,0.1);
+    }
+    .stSlider > div > div {
+        color: #ffffff;
+    }
+    .stSelectSlider > div {
+        color: #ffffff;
+    }
+    .stButton > button {
+        background: linear-gradient(90deg, #0f2027, #203a43, #2c5364);
+        color: #ffffff;
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 10px;
+        padding: 0.6rem 1.2rem;
+        font-weight: 600;
+        transition: 0.3s;
+    }
+    .stButton > button:hover {
+        background: linear-gradient(90deg, #1a3a47, #2a4a5a, #3a5a6a);
+        transform: scale(1.02);
+    }
+    .stExpander {
+        background: rgba(255,255,255,0.03);
+        border-radius: 12px;
+        border: 1px solid rgba(255,255,255,0.05);
+    }
+    .stExpander > div {
+        color: #ffffff;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# ============ DATA LOADING FUNCTIONS ============
 def create_sample_data():
-    """Create sample data if CSV doesn't exist"""
+    """Generate synthetic construction site thermal data"""
     np.random.seed(42)
     n_samples = 500
     
@@ -27,11 +291,7 @@ def create_sample_data():
     PMV = np.clip(PMV, 0, 4)
     
     df = pd.DataFrame({
-        'T': T,
-        'RH': RH,
-        'WS': WS,
-        'PET': PET,
-        'PMV': PMV,
+        'T': T, 'RH': RH, 'WS': WS, 'PET': PET, 'PMV': PMV,
         'PPD': 5 + 85 * (1 - np.exp(-0.5 * (PMV - 1))),
         'SET': PET - 1 + np.random.normal(0, 0.5, n_samples),
         'RWS': WS * 0.8 + np.random.normal(0, 0.2, n_samples),
@@ -42,26 +302,15 @@ def create_sample_data():
     })
     return df
 
-# ============ PAGE CONFIGURATION ============
-st.set_page_config(
-    page_title="Heat Stress Predictor - Simple View",
-    page_icon="📊",
-    layout="centered"
-)
-
-# ============ LOAD DATA WITH FALLBACK ============
 CSV_PATH = "EXBD.csv"
 
-# Try to load, create if not exists
 if not os.path.exists(CSV_PATH):
-    st.info("📊 Creating sample data (EXBD.csv not found)")
     df = create_sample_data()
     df.to_csv(CSV_PATH, index=False)
 else:
     try:
         df = pd.read_csv(CSV_PATH, encoding='utf-8')
     except:
-        st.warning("⚠️ Could not read EXBD.csv, using sample data")
         df = create_sample_data()
 
 # Prepare dataframes
@@ -99,7 +348,6 @@ for target in targets:
     if target in hs_df.columns:
         y_dict[target] = hs_df[target].values
 
-# Train models
 models = {}
 for target, y in y_dict.items():
     X_train, X_test, y_train, y_test = train_test_split(
@@ -118,7 +366,7 @@ for target, y in y_dict.items():
     nn.fit(X_train, y_train)
     models[target] = nn
 
-# ============ WORK TYPE DATA ============
+# ============ CONSTRUCTION WORK DATA ============
 work_data = {
     "Rest (R)": {"M": 115, "PET_AL": 35, "description": "Sitting, light activities", "base_factor": 0.15},
     "Light (LW)": {"M": 180, "PET_AL": 35.5, "description": "Standing, light hand work", "base_factor": 0.20},
@@ -134,7 +382,7 @@ activity_to_work = {
 
 # ============ HELPER FUNCTIONS ============
 def calc_productivity_loss(pet_value, work_type_key, baseline):
-    """Calculate productivity loss based on PET and work type"""
+    """Calculate construction worker productivity decrement"""
     work = work_data[work_type_key]
     PET_AL = work["PET_AL"]
     base_factor = work["base_factor"]
@@ -146,44 +394,44 @@ def calc_productivity_loss(pet_value, work_type_key, baseline):
         PL = 30 * (1 - np.exp(-base_factor * delta_pet))
         return min(PL, 30)
 
-def get_thermal_level(pet):
-    """Get thermal level based on PET value"""
+def get_thermal_risk_level(pet):
+    """Determine construction heat stress risk category"""
     if pet > 41.0:
-        return "VERY HOT", "Extreme heat stress - Unsafe for physical work", "🔥", "red"
+        return "CRITICAL", "Immediate work stoppage required", "🔴", "critical"
     elif pet > 35.0:
-        return "HOT", "High heat stress - Significant strain", "🌡️", "orange"
+        return "HIGH", "Severe heat strain - reduced work capacity", "🟠", "high"
     elif pet > 29.0:
-        return "WARM", "Moderate heat stress - Reduced work capacity", "☀️", "gold"
+        return "MODERATE", "Elevated heat stress - monitoring required", "🟡", "moderate"
     elif pet > 23.0:
-        return "SLIGHTLY WARM", "Slight heat stress - Comfortable", "⛅", "lightblue"
+        return "LOW", "Mild heat stress - standard precautions", "🟢", "low"
     else:
-        return "COMFORTABLE", "No heat stress - Optimal conditions", "✅", "green"
+        return "COMFORTABLE", "Optimal working conditions", "✅", "comfortable"
 
-def get_pmv_level(pmv):
-    """Get PMV level description"""
+def get_pmv_interpretation(pmv):
+    """Construction worker thermal comfort interpretation"""
     if pmv >= 3.0:
-        return "EXTREME DISCOMFORT"
+        return "SEVERE DISCOMFORT - High heat strain"
     elif pmv >= 2.5:
-        return "VERY DISCOMFORT"
+        return "VERY UNCOMFORTABLE - Significant heat stress"
     elif pmv >= 2.0:
-        return "MODERATE DISCOMFORT"
+        return "MODERATE DISCOMFORT - Noticeable heat"
     elif pmv >= 1.5:
-        return "DISCOMFORT"
+        return "MILD DISCOMFORT - Warm conditions"
     elif pmv >= 1.0:
-        return "SLIGHT DISCOMFORT"
+        return "SLIGHT WARMTH - Acceptable"
     else:
-        return "COMFORTABLE"
+        return "COMFORTABLE - Neutral thermal sensation"
 
 def get_height_profile(ground_pet, ground_pmv, height_m, bh_df):
-    """Calculate PET and PMV at different heights"""
+    """Calculate vertical temperature gradient for construction sites"""
     if len(bh_df) == 0:
-        return None, None
+        return None
     
     heights_original = bh_df['Height(m)'].values
     pet_pattern = bh_df['PET(0C)'].values.copy()
     pmv_pattern = bh_df['PMV'].values.copy() if 'PMV' in bh_df.columns else pet_pattern * 0.08
     
-    # Ensure monotonic decrease
+    # Ensure monotonic decrease (lapse rate)
     for i in range(1, len(pet_pattern)):
         if pet_pattern[i] > pet_pattern[i-1]:
             pet_pattern[i] = max(pet_pattern[i-1] - 0.1, 0)
@@ -192,7 +440,6 @@ def get_height_profile(ground_pet, ground_pmv, height_m, bh_df):
         if pmv_pattern[i] > pmv_pattern[i-1]:
             pmv_pattern[i] = max(pmv_pattern[i-1] - 0.01, -3)
     
-    # Calculate relative values
     if pet_pattern[0] != 0:
         pet_relative = pet_pattern / pet_pattern[0]
     else:
@@ -203,16 +450,13 @@ def get_height_profile(ground_pet, ground_pmv, height_m, bh_df):
     else:
         pmv_relative = pmv_pattern
     
-    # Apply scaling to ground values
     pet_profile = ground_pet * pet_relative
     pmv_profile = ground_pmv * pmv_relative
     
-    # Interpolate at specific heights
     heights_smooth = np.linspace(0, 100, 100)
     pet_smooth = np.interp(heights_smooth, heights_original, pet_profile)
     pmv_smooth = np.interp(heights_smooth, heights_original, pmv_profile)
     
-    # Get values at requested height
     if 0 <= height_m <= 100:
         pet_at_height = np.interp(height_m, heights_smooth, pet_smooth)
         pmv_at_height = np.interp(height_m, heights_smooth, pmv_smooth)
@@ -220,7 +464,6 @@ def get_height_profile(ground_pet, ground_pmv, height_m, bh_df):
         pet_at_height = ground_pet
         pmv_at_height = ground_pmv
     
-    # Get 100m values
     pet_at_100 = np.interp(100, heights_smooth, pet_smooth)
     pmv_at_100 = np.interp(100, heights_smooth, pmv_smooth)
     
@@ -232,88 +475,51 @@ def get_height_profile(ground_pet, ground_pmv, height_m, bh_df):
         'pet_profile': pet_smooth,
         'pmv_profile': pmv_smooth,
         'heights': heights_smooth,
-        'reduction': ground_pet - pet_at_height
+        'reduction': ground_pet - pet_at_height,
+        'lapse_rate': (ground_pet - pet_at_100) / 100 if height_m > 0 else 0
     }
 
-# ============ UI STYLING ============
-st.markdown("""
-<style>
-    .main-title {font-size: 2.2rem; font-weight: 700; color: #1a1a2e; text-align: center; padding: 1rem 0; border-bottom: 3px solid #4a90d9; margin-bottom: 1.5rem;}
-    .section-title {font-size: 1.3rem; font-weight: 600; color: #1a1a2e; margin: 1.5rem 0 0.8rem 0; padding-bottom: 0.3rem; border-bottom: 2px solid #e0e0e0;}
-    .result-row {display: flex; justify-content: space-between; padding: 0.6rem 0.8rem; background-color: #f8f9fa; border-radius: 6px; margin: 0.25rem 0; border-left: 4px solid #4a90d9;}
-    .result-label {font-weight: 500; color: #333;}
-    .result-value {font-weight: 600; color: #1a1a2e; font-size: 1.05rem;}
-    .warning-box {background-color: #fff3cd; border: 1px solid #ffc107; border-radius: 6px; padding: 0.8rem 1.2rem; margin: 0.8rem 0;}
-    .warning-box.good {background-color: #d4edda; border-color: #28a745;}
-    .warning-box.danger {background-color: #f8d7da; border-color: #dc3545;}
-    .level-badge {display: inline-block; padding: 0.3rem 1rem; border-radius: 20px; font-weight: 600; font-size: 0.9rem;}
-    .level-badge.red {background: #8B0000; color: white;}
-    .level-badge.orange {background: #DC3545; color: white;}
-    .level-badge.gold {background: #FF8C00; color: white;}
-    .level-badge.lightblue {background: #FFD700; color: #333;}
-    .level-badge.green {background: #28A745; color: white;}
-    .divider {border: none; border-top: 2px dashed #ddd; margin: 1.5rem 0;}
-    .footer-text {text-align: center; color: #999; font-size: 0.8rem; margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #eee;}
-    .input-label {font-weight: 500; color: #333; margin-bottom: 0.2rem;}
-    .metric-grid {display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin: 0.5rem 0;}
-    .metric-item {background: #f8f9fa; padding: 0.5rem 0.8rem; border-radius: 6px; text-align: center;}
-    .metric-item .label {font-size: 0.8rem; color: #666;}
-    .metric-item .value {font-size: 1.3rem; font-weight: 700; color: #1a1a2e;}
-    .status-box {padding: 1rem; border-radius: 10px; text-align: center; font-size: 1.3rem; font-weight: bold; margin: 0.5rem 0;}
-    .status-box.red {background: #8B0000; color: white;}
-    .status-box.orange {background: #DC3545; color: white;}
-    .status-box.gold {background: #FF8C00; color: white;}
-    .status-box.lightblue {background: #FFD700; color: #333;}
-    .status-box.green {background: #28A745; color: white;}
-    .height-profile {background: #f0f4f8; padding: 1rem; border-radius: 8px; margin: 0.5rem 0;}
-    .height-row {display: flex; justify-content: space-between; padding: 0.3rem 0.5rem; border-bottom: 1px solid #e0e0e0;}
-    .height-row:last-child {border-bottom: none;}
-    .bar-container {background: #eee; border-radius: 4px; height: 20px; position: relative; margin: 0.2rem 0;}
-    .bar-fill {height: 100%; border-radius: 4px; transition: width 0.3s;}
-</style>
-""", unsafe_allow_html=True)
+# ============ MAIN UI ============
+st.markdown('<div class="main-title">🏗️ Construction Heat Stress Estimator</div>', unsafe_allow_html=True)
+st.markdown('<div class="subtitle">Site-Specific Thermal Exposure & Productivity Assessment</div>', unsafe_allow_html=True)
 
-# ============ TITLE ============
-st.markdown('<div class="main-title">🌡️ Heat Stress Predictor — Simple View</div>', unsafe_allow_html=True)
-st.markdown('<p style="text-align: center; color: #555; font-style: italic;">Text-based output with building height calculations</p>', unsafe_allow_html=True)
-
-# ============ SIDEBAR INPUTS ============
+# ============ SIDEBAR ============
 with st.sidebar:
-    st.markdown("### ⚙️ Input Parameters")
+    st.markdown("### ⚙️ Site Conditions")
     st.markdown("---")
     
-    st.markdown("#### 🌤️ Weather Conditions")
-    T = st.number_input("Temperature (°C)", 20.0, 50.0, 34.0, 0.1)
-    RH = st.number_input("Humidity (%)", 0.0, 100.0, 65.0, 1.0)
+    st.markdown("#### 🌤️ Environmental Parameters")
+    T = st.number_input("Air Temperature (°C)", 20.0, 50.0, 34.0, 0.1)
+    RH = st.number_input("Relative Humidity (%)", 0.0, 100.0, 65.0, 1.0)
     WS = st.number_input("Wind Speed (m/s)", 0.0, 10.0, 1.5, 0.1)
     
     st.markdown("---")
-    st.markdown("#### 👕 Personal Factors")
+    st.markdown("#### 👷 Worker Factors")
     clo = st.select_slider(
-        "Clothing (clo)",
+        "Clothing Insulation (clo)",
         options=[0.36, 0.50, 0.57, 0.61, 0.96, 1.00],
         value=0.57
     )
     met = st.select_slider(
-        "Activity (met)",
+        "Metabolic Rate (met)",
         options=[2.1, 2.2, 2.6, 3.2, 3.8, 4.0],
         value=3.2
     )
     
     st.markdown("---")
-    st.markdown("#### 🏗️ Building Height")
-    height = st.slider("Working Height (m)", 0, 100, 0, 1)
-    st.caption("PET decreases by ~0.07°C per meter height")
+    st.markdown("#### 🏗️ Work Location")
+    height = st.slider("Working Height Above Ground (m)", 0, 100, 0, 1)
+    st.caption("PET decreases ~0.05-0.08°C per meter elevation")
     
     st.markdown("---")
-    st.markdown("#### 📊 Productivity")
-    baseline_productivity = st.number_input("Baseline (units/hr)", min_value=1.0, value=100.0, step=5.0)
+    st.markdown("#### 📊 Productivity Baseline")
+    baseline_productivity = st.number_input("Baseline Output (units/hr)", min_value=1.0, value=100.0, step=5.0)
     
     st.markdown("---")
-    if st.button("🔄 Calculate", use_container_width=True):
+    if st.button("🔄 Assess Heat Stress", use_container_width=True):
         st.rerun()
 
-# ============ MAKE PREDICTIONS ============
+# ============ PREDICTIONS ============
 input_data = np.array([[T, RH, WS]])
 input_scaled = scaler.transform(input_data)
 
@@ -322,7 +528,6 @@ for target in targets:
     if target in models:
         predictions[target] = models[target].predict(input_scaled)[0]
     else:
-        # Physics fallback
         if target == 'PET(0C)':
             predictions[target] = T + 5 + 0.015*(RH-40) - 0.8*WS
         elif target == 'PMV':
@@ -343,41 +548,47 @@ predictions['PET(0C)'] = np.clip(predictions['PET(0C)'] + clo * 0.5 + (met - 2.0
 predictions['PMV'] = np.clip(predictions['PMV'] + clo * 0.3 + (met - 2.0) * 0.2, 0, 3.5)
 predictions['PPD(%)'] = np.clip(predictions['PPD(%)'] + clo * 2 + (met - 2.0) * 1.5, 5, 90)
 
-# Get ground values
 ground_pet = predictions["PET(0C)"]
 ground_pmv = predictions["PMV"]
 
-# ============ HEIGHT PROFILE CALCULATION ============
+# ============ HEIGHT PROFILE ============
 height_profile = get_height_profile(ground_pet, ground_pmv, height, bh_df)
 
-# ============ DISPLAY RESULTS ============
+# ============ RISK ASSESSMENT ============
+risk_level, risk_desc, risk_icon, risk_class = get_thermal_risk_level(ground_pet)
+pmv_interpretation = get_pmv_interpretation(ground_pmv)
 
-# 1. Overall Status
-thermal_level, thermal_desc, thermal_icon, color_class = get_thermal_level(ground_pet)
-pmv_level = get_pmv_level(ground_pmv)
-
+# ============ 1. THERMAL RISK STATUS ============
 st.markdown(f"""
-<div class="status-box {color_class}">
-    {thermal_icon} {thermal_level} — {thermal_desc}
+<div class="status-box {risk_class}">
+    <div style="font-size: 2rem; font-weight: 700;">
+        {risk_icon} {risk_level} RISK
+    </div>
+    <div style="font-size: 1.1rem; margin-top: 0.3rem;">
+        {risk_desc}
+    </div>
+    <div style="font-size: 0.9rem; margin-top: 0.5rem; opacity: 0.9;">
+        PET = {ground_pet:.1f}°C | PMV = {ground_pmv:.2f} — {pmv_interpretation}
+    </div>
 </div>
 """, unsafe_allow_html=True)
 
-# 2. Input Summary
-st.markdown('<div class="section-title">📋 Input Summary</div>', unsafe_allow_html=True)
+# ============ 2. SITE CONDITIONS ============
+st.markdown('<div class="section-title">📋 Site Conditions Summary</div>', unsafe_allow_html=True)
 
 col1, col2, col3 = st.columns(3)
 with col1:
     st.markdown(f"""
     <div class="metric-item">
-        <div class="label">🌡️ Temperature</div>
-        <div class="value">{T:.1f} °C</div>
+        <div class="label">🌡️ Ambient Temperature</div>
+        <div class="value">{T:.1f}°C</div>
     </div>
     """, unsafe_allow_html=True)
 with col2:
     st.markdown(f"""
     <div class="metric-item">
         <div class="label">💧 Humidity</div>
-        <div class="value">{RH:.0f} %</div>
+        <div class="value">{RH:.0f}%</div>
     </div>
     """, unsafe_allow_html=True)
 with col3:
@@ -388,362 +599,338 @@ with col3:
     </div>
     """, unsafe_allow_html=True)
 
-st.markdown(f"""
-<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-top: 0.3rem;">
-    <div class="metric-item"><div class="label">👕 Clothing</div><div class="value">{clo:.2f} clo</div></div>
-    <div class="metric-item"><div class="label">💪 Activity</div><div class="value">{met:.1f} met</div></div>
-</div>
-""", unsafe_allow_html=True)
+col1, col2, col3 = st.columns(3)
+with col1:
+    st.markdown(f"""
+    <div class="metric-item">
+        <div class="label">👕 Clothing</div>
+        <div class="value">{clo:.2f} clo</div>
+    </div>
+    """, unsafe_allow_html=True)
+with col2:
+    st.markdown(f"""
+    <div class="metric-item">
+        <div class="label">💪 Activity</div>
+        <div class="value">{met:.1f} met</div>
+    </div>
+    """, unsafe_allow_html=True)
+with col3:
+    st.markdown(f"""
+    <div class="metric-item">
+        <div class="label">🏗️ Working Height</div>
+        <div class="value">{height} m</div>
+    </div>
+    """, unsafe_allow_html=True)
 
-# 3. Thermal Metrics
-st.markdown('<div class="section-title">🌡️ Thermal Metrics (Ground Level)</div>', unsafe_allow_html=True)
+# ============ 3. THERMAL EXPOSURE METRICS ============
+st.markdown('<div class="section-title">🌡️ Thermal Exposure Indicators</div>', unsafe_allow_html=True)
 
 col1, col2 = st.columns(2)
 
 with col1:
+    pet_color = "high" if ground_pet > 35 else "moderate" if ground_pet > 29 else "low"
     st.markdown(f"""
-    <div class="result-row">
-        <span class="result-label">🌡️ PET (Feels Like Temp)</span>
-        <span class="result-value" style="color: {'#DC3545' if ground_pet > 35 else '#FF8C00' if ground_pet > 29 else '#28A745'};">{ground_pet:.1f} °C</span>
+    <div class="result-card">
+        <div class="result-label">🌡️ Physiological Equivalent Temperature (PET)</div>
+        <div class="result-value {pet_color}">{ground_pet:.1f} °C</div>
+        <div style="font-size:0.8rem; color:rgba(255,255,255,0.6); margin-top:0.2rem;">
+            Effective thermal sensation temperature
+        </div>
     </div>
-    <div class="result-row">
-        <span class="result-label">📊 PMV (Thermal Comfort)</span>
-        <span class="result-value">{ground_pmv:.2f}</span>
-    </div>
-    <div class="result-row">
-        <span class="result-label">📋 PMV Interpretation</span>
-        <span class="result-value" style="font-size:0.95rem;">{pmv_level}</span>
+    <div class="result-card">
+        <div class="result-label">📊 Predicted Mean Vote (PMV)</div>
+        <div class="result-value">{ground_pmv:.2f}</div>
+        <div style="font-size:0.8rem; color:rgba(255,255,255,0.6); margin-top:0.2rem;">
+            {pmv_interpretation}
+        </div>
     </div>
     """, unsafe_allow_html=True)
 
 with col2:
     st.markdown(f"""
-    <div class="result-row">
-        <span class="result-label">😓 PPD (% Dissatisfied)</span>
-        <span class="result-value">{predictions['PPD(%)']:.1f}%</span>
+    <div class="result-card">
+        <div class="result-label">😓 Predicted Percentage Dissatisfied (PPD)</div>
+        <div class="result-value">{predictions['PPD(%)']:.1f}%</div>
+        <div style="font-size:0.8rem; color:rgba(255,255,255,0.6); margin-top:0.2rem;">
+            Expected workforce thermal dissatisfaction
+        </div>
     </div>
-    <div class="result-row">
-        <span class="result-label">🌬️ Relative Wind Speed</span>
-        <span class="result-value">{predictions['RWS(m/s)']:.1f} m/s</span>
+    <div class="result-card">
+        <div class="result-label">🌬️ Relative Wind Speed (RWS)</div>
+        <div class="result-value">{predictions['RWS(m/s)']:.1f} m/s</div>
+        <div style="font-size:0.8rem; color:rgba(255,255,255,0.6); margin-top:0.2rem;">
+            Effective wind exposure at worker level
+        </div>
     </div>
-    <div class="result-row">
-        <span class="result-label">❄️ Cooling Effect</span>
-        <span class="result-value">{predictions['CE(0C)']:.1f} °C</span>
+    <div class="result-card">
+        <div class="result-label">❄️ Cooling Effect (CE)</div>
+        <div class="result-value">{predictions['CE(0C)']:.1f} °C</div>
+        <div style="font-size:0.8rem; color:rgba(255,255,255,0.6); margin-top:0.2rem;">
+            Evaporative cooling potential
+        </div>
     </div>
     """, unsafe_allow_html=True)
 
-# 4. Height Profile Analysis
-st.markdown('<div class="section-title">🏗️ Building Height Analysis</div>', unsafe_allow_html=True)
-
+# ============ 4. VERTICAL THERMAL GRADIENT ============
 if height_profile:
+    st.markdown('<div class="section-title">🏗️ Vertical Thermal Gradient Analysis</div>', unsafe_allow_html=True)
+    
     pet_at_height = height_profile['pet_at_height']
     pmv_at_height = height_profile['pmv_at_height']
     pet_at_100 = height_profile['pet_at_100']
     reduction = height_profile['reduction']
+    lapse_rate = height_profile['lapse_rate']
     
+    # Thermal profile table
     st.markdown(f"""
     <div class="height-profile">
-        <div class="height-row">
-            <span><strong>📍 Ground Level (0m):</strong></span>
-            <span><strong>PET = {ground_pet:.1f}°C</strong> | PMV = {ground_pmv:.2f}</span>
-        </div>
-        <div class="height-row" style="background: #e3f2fd;">
-            <span><strong>📍 Working Height ({height}m):</strong></span>
-            <span><strong>PET = {pet_at_height:.1f}°C</strong> | PMV = {pmv_at_height:.2f}</span>
+        <div class="height-row" style="font-weight:600; border-bottom:2px solid rgba(255,255,255,0.2);">
+            <span>📍 Elevation</span>
+            <span>PET</span>
+            <span>PMV</span>
+            <span>Risk</span>
         </div>
         <div class="height-row">
-            <span><strong>📍 Top (100m):</strong></span>
-            <span><strong>PET = {pet_at_100:.1f}°C</strong></span>
+            <span>Ground Level (0m)</span>
+            <span><strong>{ground_pet:.1f}°C</strong></span>
+            <span>{ground_pmv:.2f}</span>
+            <span>{get_thermal_risk_level(ground_pet)[1].split('-')[0].strip()}</span>
         </div>
-        <div class="height-row" style="background: #fff3cd;">
-            <span><strong>📉 Temperature Reduction:</strong></span>
-            <span><strong style="color: {'#28A745' if reduction > 3 else '#FF8C00' if reduction > 1 else '#DC3545'};">{reduction:.1f}°C</strong> (from ground to {height}m)</span>
+        <div class="height-row highlight">
+            <span>▶ Working Height ({height}m)</span>
+            <span><strong style="color:#4ECDC4;">{pet_at_height:.1f}°C</strong></span>
+            <span>{pmv_at_height:.2f}</span>
+            <span>{get_thermal_risk_level(pet_at_height)[1].split('-')[0].strip()}</span>
+        </div>
+        <div class="height-row">
+            <span>Top of Structure (100m)</span>
+            <span>{pet_at_100:.1f}°C</span>
+            <span>{height_profile['pmv_at_100']:.2f}</span>
+            <span>{get_thermal_risk_level(pet_at_100)[1].split('-')[0].strip()}</span>
+        </div>
+        <div class="height-row" style="background:rgba(78,205,196,0.15); border-radius:4px; margin-top:0.5rem; padding:0.4rem 0.5rem;">
+            <span><strong>📉 Thermal Reduction</strong></span>
+            <span><strong style="color:#4ECDC4;">{reduction:.1f}°C</strong></span>
+            <span colspan="2" style="text-align:right;">
+                Lapse Rate: {lapse_rate:.3f}°C/m
+            </span>
         </div>
     </div>
     """, unsafe_allow_html=True)
     
-    # Height profile text-based visualization
-    st.markdown("#### 📊 Vertical Profile (Text View)")
-    
-    # Create a simple text-based visualization
-    profile_data = []
-    for h in [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]:
-        if h in [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]:
-            idx = int(h / 100 * 99) if h < 100 else 99
-            pet_val = height_profile['pet_profile'][idx]
-            pmv_val = height_profile['pmv_profile'][idx]
-            profile_data.append((h, pet_val, pmv_val))
-    
-    # Display as a table-like format
-    st.markdown("""
-    <div style="background: #f8f9fa; padding: 0.5rem; border-radius: 6px; font-family: monospace;">
-    <div style="display: grid; grid-template-columns: 80px 80px 80px; border-bottom: 2px solid #333; padding: 0.3rem 0; font-weight: bold;">
-        <span>Height (m)</span><span>PET (°C)</span><span>PMV</span>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    for h, pet_val, pmv_val in profile_data:
-        is_current = abs(h - height) < 1
-        bg_color = "#e3f2fd" if is_current else "transparent"
-        marker = " 👈" if is_current else ""
-        st.markdown(f"""
-        <div style="display: grid; grid-template-columns: 80px 80px 80px; padding: 0.2rem 0; background: {bg_color};">
-            <span>{h:.0f}{marker}</span>
-            <span>{pet_val:.1f}</span>
-            <span>{pmv_val:.2f}</span>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    st.markdown("</div>", unsafe_allow_html=True)
-    
-    # Visual bar representation of temperature reduction
-    st.markdown("#### 📉 Temperature Reduction Visualization")
+    # Temperature reduction visualization
+    st.markdown("#### 📊 Thermal Gradient Visualization")
     max_val = ground_pet
     min_val = pet_at_100
     
     st.markdown(f"""
     <div style="margin: 0.5rem 0;">
-        <div style="display: flex; justify-content: space-between; font-size: 0.8rem; color: #666;">
+        <div style="display:flex; justify-content:space-between; color:rgba(255,255,255,0.7); font-size:0.8rem;">
             <span>Ground: {ground_pet:.1f}°C</span>
+            <span>Working Height: {pet_at_height:.1f}°C</span>
             <span>100m: {pet_at_100:.1f}°C</span>
         </div>
         <div class="bar-container">
-            <div class="bar-fill" style="width: 100%; background: #DC3545;"></div>
+            <div class="bar-fill" style="width:100%; background:#FF6B6B;"></div>
+            <div class="bar-label">{ground_pet:.1f}°C</div>
         </div>
         <div class="bar-container">
-            <div class="bar-fill" style="width: {((pet_at_100 - min_val) / (max_val - min_val)) * 100 if max_val != min_val else 50}%; background: #28A745;"></div>
+            <div class="bar-fill" style="width:{((pet_at_height - min_val) / (max_val - min_val)) * 100 if max_val != min_val else 50}%; background:#FFD93D;"></div>
+            <div class="bar-label">{pet_at_height:.1f}°C</div>
         </div>
-        <div style="text-align: center; font-size: 0.8rem; color: #666;">
-            ↓ Temperature decreases as height increases
+        <div class="bar-container">
+            <div class="bar-fill" style="width:{((pet_at_100 - min_val) / (max_val - min_val)) * 100 if max_val != min_val else 50}%; background:#4ECDC4;"></div>
+            <div class="bar-label">{pet_at_100:.1f}°C</div>
+        </div>
+        <div style="text-align:center; color:rgba(255,255,255,0.5); font-size:0.75rem; margin-top:0.3rem;">
+            ↓ Temperature decreases with elevation — utilize vertical work positioning for heat relief
         </div>
     </div>
     """, unsafe_allow_html=True)
-    
-    # Thermal level at working height
-    level_at_height, desc_at_height, icon_at_height, color_at_height = get_thermal_level(pet_at_height)
-    st.markdown(f"""
-    <div style="background: #f0f4f8; padding: 0.8rem; border-radius: 6px; text-align: center; margin: 0.5rem 0; border-left: 4px solid {'#DC3545' if color_at_height == 'red' else '#FF8C00' if color_at_height == 'gold' else '#28A745'};">
-        <strong>At {height}m working height:</strong> {icon_at_height} {level_at_height} — {desc_at_height}
-    </div>
-    """, unsafe_allow_html=True)
 
-else:
-    st.info("ℹ️ Height profile data not available. Please ensure the dataset contains height information.")
-
-# 5. Productivity Loss Analysis
-st.markdown('<div class="section-title">📉 Productivity Loss Analysis</div>', unsafe_allow_html=True)
+# ============ 5. PRODUCTIVITY IMPACT ============
+st.markdown('<div class="section-title">📉 Productivity Impact Assessment</div>', unsafe_allow_html=True)
 
 current_work_key = activity_to_work.get(met, "Heavy (HW)")
 work = work_data[current_work_key]
 
-# Calculate productivity loss at current height
-if height_profile:
-    pet_for_productivity = height_profile['pet_at_height']
-else:
-    pet_for_productivity = ground_pet
+pet_effective = height_profile['pet_at_height'] if height_profile else ground_pet
+productivity_loss = calc_productivity_loss(pet_effective, current_work_key, baseline_productivity)
 
-productivity_loss = calc_productivity_loss(pet_for_productivity, current_work_key, baseline_productivity)
-
-# Productivity status
+# Risk classification for productivity
 if productivity_loss == 0:
-    loss_status, loss_color = "✅ No productivity loss", "good"
+    loss_class, loss_icon, loss_desc = "low", "✅", "No productivity decrement"
 elif productivity_loss < 10:
-    loss_status, loss_color = f"ℹ️ {productivity_loss:.1f}% loss - Minimal impact", "warning-box"
+    loss_class, loss_icon, loss_desc = "low", "ℹ️", "Minimal productivity impact"
 elif productivity_loss < 20:
-    loss_status, loss_color = f"⚠️ {productivity_loss:.1f}% loss - Moderate impact", "warning-box"
+    loss_class, loss_icon, loss_desc = "moderate", "⚠️", "Moderate productivity reduction"
 else:
-    loss_status, loss_color = f"🔴 {productivity_loss:.1f}% loss - Severe impact", "danger"
+    loss_class, loss_icon, loss_desc = "critical", "🔴", "Severe productivity loss"
 
 st.markdown(f"""
-<div class="warning-box {loss_color}">
-    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
+<div class="warning-box {loss_class}">
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;">
         <div>
-            <strong>{current_work_key}</strong>
-            <span style="color: #666; font-size: 0.9rem;">({work['description']})</span>
+            <strong style="font-size:1.1rem;">{current_work_key}</strong>
+            <span style="color:rgba(255,255,255,0.6); font-size:0.9rem; margin-left:0.5rem;">
+                ({work['description']})
+            </span>
         </div>
-        <div style="font-size: 1.2rem; font-weight: 700;">
-            {loss_status}
+        <div style="font-size:1.2rem; font-weight:700;">
+            {loss_icon} {productivity_loss:.1f}% Loss — {loss_desc}
         </div>
     </div>
-    <div style="margin-top: 0.4rem; font-size: 0.9rem; color: #555;">
-        📊 PET Alert Level: {work['PET_AL']}°C | Working Height: {height}m
+    <div style="margin-top:0.4rem; font-size:0.85rem; color:rgba(255,255,255,0.6);">
+        PET Alert Level: {work['PET_AL']}°C | Working Height: {height}m | Baseline: {baseline_productivity:.0f} units/hr
     </div>
 </div>
 """, unsafe_allow_html=True)
 
-# All work types comparison
-st.markdown("#### 📊 Productivity Loss by Work Type")
+# Work type comparison
+st.markdown("#### 📊 Productivity Decrement by Work Classification")
 
-# Calculate losses at current height
 loss_data = []
 for wt in work_data.keys():
-    loss = calc_productivity_loss(pet_for_productivity, wt, baseline_productivity)
+    loss = calc_productivity_loss(pet_effective, wt, baseline_productivity)
     loss_data.append((wt, loss))
 
 max_loss = max([l for _, l in loss_data]) if loss_data else 1
 
 for wt, loss in loss_data:
     is_current = (wt == current_work_key)
-    bar_color = "#DC3545" if loss >= 20 else "#FF8C00" if loss >= 10 else "#28A745"
+    bar_color = "#FF6B6B" if loss >= 20 else "#FFD93D" if loss >= 10 else "#4ECDC4"
     bar_width = max(5, (loss / 30) * 100) if loss > 0 else 5
-    marker = "▶" if is_current else " "
     
     st.markdown(f"""
-    <div style="display: flex; align-items: center; margin: 0.3rem 0; padding: 0.2rem 0; {'background: #e3f2fd; border-radius: 4px;' if is_current else ''}">
-        <div style="width: 130px; font-size: 0.85rem; font-weight: {'600' if is_current else '400'};">
-            {marker} {wt}
+    <div style="display:flex; align-items:center; margin:0.25rem 0; padding:0.2rem 0.5rem; 
+                {'background:rgba(78,205,196,0.1); border-radius:6px;' if is_current else ''}">
+        <div style="width:140px; font-size:0.85rem; font-weight:{'600' if is_current else '400'}; color:#ffffff;">
+            {'▶ ' if is_current else '  '}{wt}
         </div>
-        <div style="flex: 1; background: #eee; border-radius: 4px; height: 20px; position: relative;">
-            <div style="width: {bar_width}%; background: {bar_color}; height: 100%; border-radius: 4px;"></div>
-            <div style="position: absolute; right: 6px; top: 2px; font-size: 0.7rem; font-weight: 600; color: {'white' if loss > 15 else '#333'};">
+        <div style="flex:1; background:rgba(255,255,255,0.1); border-radius:4px; height:20px; position:relative;">
+            <div style="width:{bar_width}%; background:{bar_color}; height:100%; border-radius:4px;"></div>
+            <div style="position:absolute; right:6px; top:2px; font-size:0.7rem; font-weight:600; color:#ffffff;">
                 {loss:.1f}%
             </div>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
-# 6. Impact of Height on Productivity
-if height_profile:
-    st.markdown('<div class="section-title">📐 Height Impact on Productivity</div>', unsafe_allow_html=True)
+# ============ 6. HEIGHT-BASED WORK RECOMMENDATION ============
+if height_profile and height > 0:
+    st.markdown('<div class="section-title">🏗️ Height-Based Work Optimization</div>', unsafe_allow_html=True)
     
-    # Calculate losses at different heights
-    height_levels = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
-    height_impact_data = []
+    ground_loss = calc_productivity_loss(ground_pet, current_work_key, baseline_productivity)
+    height_loss = calc_productivity_loss(pet_at_height, current_work_key, baseline_productivity)
+    loss_reduction = ground_loss - height_loss
     
-    for h in height_levels:
-        idx = int(h / 100 * 99) if h < 100 else 99
-        pet_at_h = height_profile['pet_profile'][idx]
-        loss_at_h = calc_productivity_loss(pet_at_h, current_work_key, baseline_productivity)
-        height_impact_data.append((h, pet_at_h, loss_at_h))
-    
-    st.markdown("""
-    <div style="background: #f8f9fa; padding: 0.5rem; border-radius: 6px; font-family: monospace; font-size: 0.85rem;">
-    <div style="display: grid; grid-template-columns: 80px 80px 80px 80px; border-bottom: 2px solid #333; padding: 0.3rem 0; font-weight: bold;">
-        <span>Height</span><span>PET</span><span>Loss %</span><span>Status</span>
+    st.markdown(f"""
+    <div style="background:rgba(78,205,196,0.1); padding:1rem; border-radius:12px; border:1px solid rgba(78,205,196,0.2);">
+        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:0.5rem; text-align:center;">
+            <div>
+                <div style="color:rgba(255,255,255,0.6); font-size:0.75rem; text-transform:uppercase;">Ground Level</div>
+                <div style="font-size:1.2rem; font-weight:700; color:#FF6B6B;">{ground_loss:.1f}% Loss</div>
+            </div>
+            <div>
+                <div style="color:rgba(255,255,255,0.6); font-size:0.75rem; text-transform:uppercase;">At {height}m</div>
+                <div style="font-size:1.2rem; font-weight:700; color:#4ECDC4;">{height_loss:.1f}% Loss</div>
+            </div>
+            <div>
+                <div style="color:rgba(255,255,255,0.6); font-size:0.75rem; text-transform:uppercase;">Improvement</div>
+                <div style="font-size:1.2rem; font-weight:700; color:#FFD93D;">{loss_reduction:.1f}% Better</div>
+            </div>
+        </div>
+        <div style="text-align:center; margin-top:0.5rem; color:rgba(255,255,255,0.7); font-size:0.85rem;">
+            {f'Positioning work at {height}m elevation reduces productivity loss by {loss_reduction:.1f}% compared to ground level' if loss_reduction > 1 else 'Minimal benefit from elevation — consider additional cooling measures'}
+        </div>
     </div>
     """, unsafe_allow_html=True)
-    
-    for h, pet_at_h, loss_at_h in height_impact_data:
-        is_current = abs(h - height) < 1
-        bg_color = "#e3f2fd" if is_current else "transparent"
-        status_icon = "✅" if loss_at_h == 0 else "⚠️" if loss_at_h < 15 else "🔴"
-        marker = " 👈" if is_current else ""
-        
-        st.markdown(f"""
-        <div style="display: grid; grid-template-columns: 80px 80px 80px 80px; padding: 0.2rem 0; background: {bg_color};">
-            <span>{h:.0f}m{marker}</span>
-            <span>{pet_at_h:.1f}°C</span>
-            <span>{loss_at_h:.1f}%</span>
-            <span>{status_icon}</span>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    st.markdown("</div>", unsafe_allow_html=True)
-    
-    # Recommendation based on height
-    if height > 50:
-        st.success(f"✅ Working at {height}m reduces PET by {height_profile['reduction']:.1f}°C, lowering productivity loss from {calc_productivity_loss(ground_pet, current_work_key, baseline_productivity):.1f}% to {productivity_loss:.1f}%")
-    elif height > 20:
-        st.info(f"ℹ️ Working at {height}m provides moderate heat relief ({height_profile['reduction']:.1f}°C reduction)")
-    else:
-        st.warning(f"⚠️ Working at {height}m provides minimal heat relief. Consider moving to higher levels if possible.")
 
-# 7. Safety Guidance
-st.markdown('<div class="section-title">📋 Safety Guidance</div>', unsafe_allow_html=True)
+# ============ 7. SAFETY GUIDANCE ============
+st.markdown('<div class="section-title">🛡️ Site Safety Guidance</div>', unsafe_allow_html=True)
 
-# Determine severity based on PET at working height
-pet_effective = height_profile['pet_at_height'] if height_profile else ground_pet
+risk_level_effective, risk_desc_effective, _, risk_class_effective = get_thermal_risk_level(pet_effective)
 
-if pet_effective > 41:
-    guidance = """
-    🔴 **EXTREME HEAT — STOP WORK IMMEDIATELY**
-    • All outdoor work must be suspended
-    • Move to air-conditioned areas
-    • Drink water every 15 minutes
-    • Watch for: headache, dizziness, confusion
-    • Emergency protocol: Activate heat stress response team
+if risk_class_effective == "critical":
+    guidance = f"""
+    🔴 **EMERGENCY PROTOCOL — IMMEDIATE ACTION REQUIRED**
+    
+    • **Work Stoppage**: All non-essential outdoor construction activities must cease immediately
+    • **Worker Relocation**: Move all personnel to air-conditioned rest areas or shaded locations
+    • **Hydration Protocol**: Mandatory 250ml water intake every 15 minutes with electrolyte supplementation
+    • **Medical Monitoring**: Activate site heat stress response team; monitor for heat exhaustion symptoms
+    • **High-Risk Workers**: Prioritize medical evaluation for workers with pre-existing conditions
+    • **Resumption Criteria**: Only resume work when PET drops below 35°C with adequate cooling measures
     """
-elif pet_effective > 35:
-    guidance = """
-    🟠 **HIGH HEAT — TAKE PRECAUTIONS**
-    • Limit work to 45-minute sessions with 15-minute breaks
-    • Wear light, breathable clothing
-    • Drink water every 30 minutes
-    • Use shaded rest areas
-    • Rotate workers to minimize exposure
+elif risk_class_effective == "high":
+    guidance = f"""
+    🟠 **HIGH HEAT STRESS — ENHANCED PRECAUTIONS**
+    
+    • **Work-Rest Cycles**: Implement 45-minute work / 15-minute rest rotation in shaded areas
+    • **Cooling Measures**: Provide cooling vests, ice packs, and misting stations at work locations
+    • **Hydration**: 250ml water every 30 minutes; electrolyte drinks recommended for heavy work
+    • **Monitoring**: Designate safety officer to monitor worker condition and PET levels hourly
+    • **Work Modifications**: Schedule heavy work (VHW, HW) during cooler morning/evening hours
+    • **Height Consideration**: {f'Utilize {height}m elevation for {reduction:.1f}°C thermal relief' if height_profile and height > 0 else 'Consider elevating work platforms for thermal relief'}
     """
-elif pet_effective > 29:
-    guidance = """
-    🟡 **MODERATE HEAT — STAY ALERT**
-    • Take regular breaks in shade (10 min every hour)
-    • Maintain hydration (250ml every 30 min)
-    • Normal work schedule with monitoring
-    • Watch for signs of heat exhaustion
+elif risk_class_effective == "moderate":
+    guidance = f"""
+    🟡 **MODERATE HEAT STRESS — STANDARD PRECAUTIONS**
+    
+    • **Work-Rest Cycles**: 60-minute work / 10-minute rest in shaded areas for moderate activities
+    • **Hydration**: 250ml water every 45 minutes; standard electrolyte availability
+    • **Monitoring**: Regular observation of workers for early signs of heat strain
+    • **Work Scheduling**: Continue normal operations with increased vigilance
+    • **Cooling**: Ensure adequate shade and ventilation at all workstations
+    • **Height Strategy**: {f'Working at {height}m provides {reduction:.1f}°C reduction — consider vertical work positioning' if height_profile and height > 0 else 'Monitor for increasing temperatures throughout the day'}
     """
 else:
-    guidance = """
-    🟢 **COMFORTABLE — NORMAL WORK**
-    • Regular hydration recommended
-    • Standard work schedule
-    • No heat-related restrictions
-    • Continue normal safety protocols
+    guidance = f"""
+    🟢 **NORMAL OPERATIONS — ROUTINE MONITORING**
+    
+    • **Work Schedule**: Standard work operations with regular breaks
+    • **Hydration**: Maintain normal water intake (250ml per hour minimum)
+    • **Monitoring**: Continue routine safety observations
+    • **Preparation**: Maintain readiness for temperature increases during peak hours
+    • **Best Practice**: {f'Working at {height}m provides optimal thermal conditions' if height_profile and height > 0 else 'Continue standard safety protocols'}
     """
 
 st.markdown(f"""
-<div style="background: #f8f9fa; padding: 1rem; border-radius: 8px; border-left: 4px solid #4a90d9; white-space: pre-line; font-size: 0.95rem;">
-{guidance}
+<div class="guidance-box {risk_class_effective}">
+    {guidance}
 </div>
 """, unsafe_allow_html=True)
 
-# 8. Height-Specific Recommendation
-if height_profile and height > 0:
-    st.markdown(f"""
-    <div style="background: #e8f5e9; padding: 0.8rem; border-radius: 6px; margin-top: 0.5rem; border-left: 4px solid #2E7D32;">
-        <strong>🏗️ Height-Specific Recommendation:</strong><br>
-        Working at <strong>{height}m</strong> reduces thermal exposure by <strong>{height_profile['reduction']:.1f}°C</strong> 
-        compared to ground level. This results in <strong>{productivity_loss:.1f}%</strong> productivity loss 
-        vs. {calc_productivity_loss(ground_pet, current_work_key, baseline_productivity):.1f}% at ground level 
-        for {current_work_key}.
-    </div>
-    """, unsafe_allow_html=True)
-
-# 9. Explanation Section
-with st.expander("ℹ️ Understanding the Results"):
+# ============ 8. TECHNICAL NOTES ============
+with st.expander("📐 Technical Notes & Methodology"):
     st.markdown("""
-    ### What do these numbers mean?
+    **Thermal Exposure Assessment Parameters**
     
-    **PET (Physiological Equivalent Temperature)**
-    - The temperature at which your body would feel the same thermal stress
-    - Higher PET = more heat stress on your body
+    | Parameter | Description | Application |
+    |-----------|-------------|-------------|
+    | **PET** | Physiological Equivalent Temperature (°C) | Primary heat stress indicator representing thermal sensation |
+    | **PMV** | Predicted Mean Vote (0-3.5 scale) | Thermal comfort assessment for construction workers |
+    | **PPD** | Predicted Percentage Dissatisfied (%) | Workforce acceptance of thermal conditions |
+    | **RWS** | Relative Wind Speed (m/s) | Effective wind exposure at worker level |
+    | **CE** | Cooling Effect (°C) | Evaporative cooling potential from wind |
     
-    **Thermal Levels:**
-    - **>41°C**: 🔴 Very Hot — Dangerous for physical work
-    - **35-41°C**: 🟠 Hot — High strain, limit work duration
-    - **29-35°C**: 🟡 Warm — Moderate strain, take breaks
-    - **23-29°C**: 🟢 Slightly Warm — Comfortable
-    - **<23°C**: ✅ Comfortable — No heat stress
+    **Heat Stress Risk Thresholds (Construction Context)**
     
-    **PMV (Predicted Mean Vote)**
-    - How warm/cold people feel on average
-    - Scale: 0 (neutral) to 3.5 (very hot)
+    | PET Range | Risk Level | Work Restriction |
+    |-----------|------------|------------------|
+    | >41°C | Critical | Emergency — All work suspended |
+    | 35-41°C | High | 45-min work / 15-min rest |
+    | 29-35°C | Moderate | 60-min work / 10-min rest |
+    | 23-29°C | Low | Standard operations |
+    | <23°C | Comfortable | Normal operations |
     
-    **Building Height Impact**
-    - PET decreases by approximately 0.05-0.08°C per meter of height
-    - Higher working levels provide thermal relief
-    - This is due to decreasing air temperature with altitude
+    **Vertical Thermal Gradient**
     
-    **Productivity Loss**
-    - Estimated reduction in work output due to heat stress
-    - Based on research from construction sites
-    - Varies by work type (heavier work = more loss)
+    PET decreases by approximately 0.05-0.08°C per meter of elevation above ground level. This effect can be utilized for:
+    - Strategic work positioning on multi-story construction sites
+    - Scheduling heavy work at higher elevations during peak heat
+    - Planning cooling interventions for ground-level operations
     
-    ### How to use this information:
-    1. **Check your PET level** to understand heat stress severity
-    2. **Look at the height profile** to see how temperature changes
-    3. **Review productivity loss** for different work types
-    4. **Follow safety guidance** based on your situation
-    5. **Consider working at higher levels** if possible for heat relief
-    """)
-
-# 10. Footer
-st.markdown('<div class="footer-text">🌡️ Heat Stress Predictor — Simple Text Interface | Height Analysis Included</div>', unsafe_allow_html=True)
+    **Productivity Loss Calculation**
+    
+    Based on empirical models from construction site studies:
